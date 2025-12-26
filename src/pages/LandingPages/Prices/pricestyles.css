@@ -1,0 +1,106 @@
+/* =========================
+   PAGE BACKGROUND
+   ========================= */
+.pricing-page-bg {
+  min-height: 100vh;
+  padding-top: 120px;
+  padding-bottom: 80px;
+
+  /* ⭐ PREMIUM BACKGROUND COMBINATION */
+  background: linear-gradient(180deg, #070707 100%, #06080e 100%)
+  ;
+}
+
+/* =========================
+   PRICING CARD
+   ========================= */
+.pricing-card {
+  background: #ffffff;
+  padding: 1.5rem;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.pricing-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* =========================
+   TABLE STYLES
+   ========================= */
+.table th {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+
+.table td,
+.table th {
+  vertical-align: middle;
+}
+
+/* Selected row */
+.selected-row {
+  background-color: #e7f1ff !important;
+}
+
+/* =========================
+   MODAL STYLES
+   ========================= */
+.modal-inside-box {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+}
+
+.modal-content {
+  width: 400px;
+  border-radius: 12px;
+  padding: 20px;
+  background: #ffffff;
+}
+
+/* Modal rows */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  background: #f8f9fa;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.info-row.total {
+  background: #e7f1ff;
+  font-weight: bold;
+}
+
+/* =========================
+   FADE-IN ANIMATION
+   ========================= */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-card {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+/* Optional stagger effect */
+.fade-in-card:nth-child(1) { animation-delay: 0.1s; }
+.fade-in-card:nth-child(2) { animation-delay: 0.3s; }
+.fade-in-card:nth-child(3) { animation-delay: 0.5s; }
+.fade-in-card:nth-child(4) { animation-delay: 0.7s; }

@@ -1,0 +1,48 @@
+.table-hover tbody tr:hover {
+  background-color: #f1f5ff;
+  transition: 0.2s ease-in-out;
+}
+
+.btn:hover {
+  transform: scale(1.05);
+  transition: 0.2s ease;
+}
+.table th {
+  background: #000 !important;
+  font-weight: 600;
+  font-size: 16px !important;
+  font-family: "Roboto", sans-serif !important;
+}
+/* ============================= */
+/* REMOVE CARD HOVER ANIMATION */
+/* ============================= */
+
+.card {
+  transition: none !important;
+}
+
+.card:hover {
+  transform: none !important;
+  box-shadow: #000 !important; /* keeps original shadow, no animation */
+}
+
+/* ============================= */
+/* EXISTING STYLES (unchanged)  */
+/* ============================= */
+
+.table-hover tbody tr:hover {
+  background-color: #f1f5ff;
+  transition: none; /* remove animation */
+}
+
+.btn:hover {
+  transform: none; /* remove scaling */
+  transition: none;
+}
+
+.table th {
+  background: #000 !important;
+  font-weight: 600;
+  font-size: 16px !important;
+  font-family: "Roboto", sans-serif !important;
+}
