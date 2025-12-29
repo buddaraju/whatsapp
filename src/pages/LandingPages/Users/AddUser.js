@@ -1,39 +1,94 @@
 import React, { useState } from "react";
+import PropTypes from "prop-types";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import "./AddUser.css";
 
-const API_URL = "http://localhost:8000/users/";
+const API_BASE_URL = "http://13.203.205.219:8000/accounts/";
 
-function AddUser() {
+function AddUser({ onUserAdded }) {
   const navigate = useNavigate();
 
+  // Form state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+
+  // Modal state
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessages, setErrorMessages] = useState([]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const errors = [];
+
+    // Frontend validations
+    if (!firstName) errors.push("First Name is required");
+    if (!lastName) errors.push("Last Name is required");
+    if (!email) errors.push("Email is required");
+    if (!phone) errors.push("Phone is required");
+    if (!role) errors.push("Role is required");
+    if (!password) errors.push("Password is required");
+    if (!password2) errors.push("Confirm Password is required");
+    if (password !== password2) errors.push("Passwords do not match");
+
+    if (errors.length > 0) {
+      setErrorMessages(errors);
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Payload matching backend
     const payload = {
-      first_name: firstName,
-      last_name: lastName,
-      email: email,
-      status: status,
+      First_Name: firstName,
+      Last_Name: lastName,
+      email,
+      phone,
+      role,
+      status: "Active",
+      password,
+      password2,
     };
 
-    await axios.post(API_URL, payload);
-    navigate("/users");
+    try {
+      const res = await axios.post(`${API_BASE_URL}register/`, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (onUserAdded) onUserAdded(res.data);
+      navigate("/pages/landing-pages/user");
+    } catch (err) {
+      console.error("Error registering user:", err.response?.data || err);
+
+      // Backend validation errors
+      const backendErrors = [];
+      if (err.response?.data) {
+        Object.entries(err.response.data).forEach(([field, msgs]) => {
+          backendErrors.push(`${field}: ${msgs.join(", ")}`);
+        });
+      } else {
+        backendErrors.push("Failed to register user");
+      }
+
+      setErrorMessages(backendErrors);
+      setShowErrorModal(true);
+    }
   };
 
   return (
     <>
       <Navbar />
       <div className="container">
-        <div className="card shadow">
+        <div className="card shadow mt-4">
           <div className="card-body">
-            <h3>Add New User</h3>
+            <h3 className="mb-4">Add New User</h3>
+
             <form onSubmit={handleSubmit}>
               {/* First Name */}
               <div className="input-group mb-3">
@@ -74,15 +129,79 @@ function AddUser() {
                   placeholder="Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
+
+              {/* Phone */}
+              <div className="input-group mb-3">
+                <span className="input-group-text">
+                  <i className="fa fa-phone"></i>
+                </span>
+                <input
+                  type="tel"
+                  className="form-control"
+                  placeholder="Phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* Role */}
+              <div className="input-group mb-3">
+                <span className="input-group-text">
+                  <i className="fa fa-briefcase"></i>
+                </span>
+                <select
+                  className="form-select"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  required
+                >
+                  <option value="">Select Role</option>
+                  <option value="User">User</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+
+              {/* Password */}
+              <div className="input-group mb-3">
+                <span className="input-group-text">
+                  <i className="fa fa-lock"></i>
+                </span>
+                <input
+                  type="password"
+                  className="form-control"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* Confirm Password */}
+              <div className="input-group mb-3">
+                <span className="input-group-text">
+                  <i className="fa fa-lock"></i>
+                </span>
+                <input
+                  type="password"
+                  className="form-control"
+                  placeholder="Confirm Password"
+                  value={password2}
+                  onChange={(e) => setPassword2(e.target.value)}
+                  required
+                />
+              </div>
+
               {/* Buttons */}
               <div className="d-flex justify-content-between">
-                <button className="btn btn-success" type="submit">
+                <button className="btn btn-success px-4" type="submit">
                   Save
                 </button>
                 <button
-                  className="btn btn-secondary"
+                  className="btn btn-secondary px-4"
                   type="button"
                   onClick={() => navigate("/pages/landing-pages/user")}
                 >
@@ -93,8 +212,42 @@ function AddUser() {
           </div>
         </div>
       </div>
+
+      {/* Error modal */}
+      {showErrorModal && (
+        <div className="modal show fade d-block" tabIndex="-1">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title text-danger">Error</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowErrorModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <ul>
+                  {errorMessages.map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-primary" onClick={() => setShowErrorModal(false)}>
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+
+AddUser.propTypes = {
+  onUserAdded: PropTypes.func,
+};
 
 export default AddUser;
