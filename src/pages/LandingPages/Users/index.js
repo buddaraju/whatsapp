@@ -6,17 +6,22 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import "./UserAdd.css";
 
+// API URLs
 const API_URL = "http://13.203.205.219:8000/accounts/users/";
+const USER_API_URL = "http://13.203.205.219:8000/accounts/user/";
 
 function UserAdd() {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const itemsPerPage = 5;
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [userToEdit, setUserToEdit] = useState(null);
 
   const navigate = useNavigate();
 
@@ -24,6 +29,7 @@ function UserAdd() {
     loadUsers();
   }, []);
 
+  // LOAD USERS
   const loadUsers = () => {
     setLoading(true);
     axios
@@ -33,30 +39,7 @@ function UserAdd() {
       .finally(() => setLoading(false));
   };
 
-  // Open modal when delete button clicked
-  const handleDeleteClick = (user) => {
-    setUserToDelete(user);
-    setShowDeleteModal(true);
-  };
-
-  // Confirm deletion
-  const confirmDelete = () => {
-    if (userToDelete) {
-      axios
-        .delete(`${API_URL}${userToDelete.id}/`) // DELETE /users/:id/
-        .then(() => {
-          setUsers(users.filter((u) => u.id !== userToDelete.id));
-          setShowDeleteModal(false);
-          setUserToDelete(null);
-        })
-        .catch((err) => {
-          console.error(err);
-          alert("Failed to delete the user.");
-        });
-    }
-  };
-
-  // Filter users based on First_Name, Last_Name, email, or phone
+  // SEARCH FILTER
   const filteredUsers = users.filter(
     (u) =>
       (u.First_Name && u.First_Name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -65,10 +48,54 @@ function UserAdd() {
       (u.phone && u.phone.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // PAGINATION
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+
+  // DELETE USER ✅
+  const confirmDelete = () => {
+    if (!userToDelete) return;
+
+    axios
+      .delete(`${USER_API_URL}${userToDelete.id}/`)
+      .then(() => {
+        setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+        setShowDeleteModal(false);
+        setUserToDelete(null);
+      })
+      .catch((err) => console.error("DELETE ERROR:", err));
+  };
+
+  // EDIT USER ✅ (PUT ONLY)
+  const confirmEdit = () => {
+    if (!userToEdit) return;
+
+    // ⚠️ SEND ONLY REQUIRED / EDITABLE FIELDS
+    const payload = {
+      First_Name: userToEdit.First_Name,
+      Last_Name: userToEdit.Last_Name,
+      email: userToEdit.email,
+      phone: userToEdit.phone,
+      role: userToEdit.role,
+      status: userToEdit.status,
+    };
+
+    axios
+      .put(`${USER_API_URL}${userToEdit.id}/`, payload, {
+        headers: { "Content-Type": "application/json" },
+      })
+      .then((res) => {
+        setUsers((prev) => prev.map((u) => (u.id === userToEdit.id ? res.data : u)));
+        setShowEditModal(false);
+        setUserToEdit(null);
+      })
+      .catch((err) => {
+        console.error("EDIT ERROR:", err.response?.data || err);
+        alert("Update failed. Check console.");
+      });
+  };
 
   return (
     <>
@@ -80,13 +107,13 @@ function UserAdd() {
             <div className="card-body p-4">
               <h3 className="fw-bold text-primary mb-4">Users</h3>
 
-              {/* Search and Add */}
-              <div className="row mb-4 align-items-center">
-                <div className="col-12 col-md-8 position-relative mb-2 mb-md-0">
+              {/* SEARCH + ADD */}
+              <div className="row mb-4">
+                <div className="col-md-8 position-relative">
                   <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-primary" />
                   <input
-                    className="form-control ps-5 rounded-pill shadow-sm"
-                    placeholder="Search by name, email, or phone..."
+                    className="form-control ps-5 rounded-pill"
+                    placeholder="Search..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -94,9 +121,9 @@ function UserAdd() {
                     }}
                   />
                 </div>
-                <div className="col-12 col-md-4 text-md-end text-center">
+                <div className="col-md-4 text-end">
                   <button
-                    className="btn btn-success rounded-pill shadow-sm px-4"
+                    className="btn btn-success rounded-pill px-4"
                     onClick={() => navigate("/pages/landing-pages/user/AddUser")}
                   >
                     <FaPlus className="me-2" />
@@ -105,82 +132,85 @@ function UserAdd() {
                 </div>
               </div>
 
-              {/* Table */}
+              {/* TABLE */}
               {loading ? (
-                <div className="text-center py-5 fw-bold text-primary">Loading...</div>
+                <div className="text-center text-primary fw-bold">Loading...</div>
               ) : (
-                <div className="table-responsive border rounded-3">
-                  <table className="table table-bordered table-hover align-middle text-center mb-0">
-                    <thead className="table-dark">
+                <table className="table table-bordered table-hover text-center">
+                  <thead className="table-dark">
+                    <tr>
+                      <th>ID</th>
+                      <th>First</th>
+                      <th>Last</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentUsers.length === 0 ? (
                       <tr>
-                        <th>ID</th>
-                        <th>First Name</th>
-                        <th>Last Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <td colSpan="8">No users found</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {currentUsers.length === 0 ? (
-                        <tr>
-                          <td colSpan="8" className="text-muted py-4">
-                            No users found
+                    ) : (
+                      currentUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td>{user.id}</td>
+                          <td>{user.First_Name}</td>
+                          <td>{user.Last_Name}</td>
+                          <td>{user.email}</td>
+                          <td>{user.phone}</td>
+                          <td>{user.role}</td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                user.status === "Active" ? "bg-success" : "bg-danger"
+                              }`}
+                            >
+                              {user.status}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-warning btn-sm me-2"
+                              onClick={() => {
+                                setUserToEdit({ ...user });
+                                setShowEditModal(true);
+                              }}
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => {
+                                setUserToDelete(user);
+                                setShowDeleteModal(true);
+                              }}
+                            >
+                              <FaTrashAlt />
+                            </button>
                           </td>
                         </tr>
-                      ) : (
-                        currentUsers.map((user) => (
-                          <tr key={user.id}>
-                            <td>{user.id}</td>
-                            <td>{user.First_Name || "-"}</td>
-                            <td>{user.Last_Name || "-"}</td>
-                            <td>{user.email || "-"}</td>
-                            <td>{user.phone || "-"}</td>
-                            <td>{user.role || "-"}</td>
-                            <td>
-                              <span
-                                className={`badge rounded-pill px-3 py-2 ${
-                                  user.status === "Active" ? "bg-success" : "bg-danger"
-                                }`}
-                              >
-                                {user.status}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="d-flex justify-content-center">
-                                <button className="btn btn-outline-warning btn-sm rounded-circle me-2">
-                                  <FaEdit />
-                                </button>
-                                <button
-                                  className="btn btn-outline-danger btn-sm rounded-circle"
-                                  onClick={() => handleDeleteClick(user)}
-                                >
-                                  <FaTrashAlt />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               )}
 
-              {/* Pagination */}
+              {/* PAGINATION */}
               {totalPages > 1 && (
-                <div className="d-flex flex-wrap justify-content-center mt-4">
-                  {[...Array(totalPages)].map((_, index) => (
+                <div className="text-center">
+                  {[...Array(totalPages)].map((_, i) => (
                     <button
-                      key={index}
-                      className={`btn btn-sm rounded-pill mx-1 my-1 ${
-                        currentPage === index + 1 ? "btn-primary shadow" : "btn-outline-primary"
+                      key={i}
+                      className={`btn btn-sm mx-1 ${
+                        currentPage === i + 1 ? "btn-primary" : "btn-outline-primary"
                       }`}
-                      onClick={() => setCurrentPage(index + 1)}
+                      onClick={() => setCurrentPage(i + 1)}
                     >
-                      {index + 1}
+                      {i + 1}
                     </button>
                   ))}
                 </div>
@@ -190,38 +220,95 @@ function UserAdd() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* DELETE MODAL */}
       {showDeleteModal && (
-        <div className="modal show fade d-block" tabIndex="-1">
+        <div className="modal show d-block">
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title text-danger">Delete User</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowDeleteModal(false)}
-                ></button>
+                <h5>Delete User</h5>
+                <button className="btn-close" onClick={() => setShowDeleteModal(false)} />
               </div>
-              <div className="modal-body">
-                <p>
-                  Are you sure you want to delete user{" "}
-                  <strong>
-                    {userToDelete?.First_Name} {userToDelete?.Last_Name}
-                  </strong>
-                  ?
-                </p>
-              </div>
+              <div className="modal-body">Are you sure?</div>
               <div className="modal-footer">
                 <button
-                  type="button"
                   className="btn btn-secondary"
+                  style={{ height: "45px" }}
                   onClick={() => setShowDeleteModal(false)}
                 >
                   Cancel
                 </button>
-                <button type="button" className="btn btn-danger" onClick={confirmDelete}>
+                <button
+                  className="btn btn-danger"
+                  style={{ height: "45px" }}
+                  onClick={confirmDelete}
+                >
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MODAL */}
+      {showEditModal && userToEdit && (
+        <div className="modal show d-block">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5>Edit User</h5>
+                <button className="btn-close" onClick={() => setShowEditModal(false)} />
+              </div>
+              <div className="modal-body">
+                <input
+                  className="form-control mb-2"
+                  value={userToEdit.First_Name || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, First_Name: e.target.value }))}
+                />
+                <input
+                  className="form-control mb-2"
+                  value={userToEdit.Last_Name || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, Last_Name: e.target.value }))}
+                />
+                <input
+                  className="form-control mb-2"
+                  value={userToEdit.email || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, email: e.target.value }))}
+                />
+                <input
+                  className="form-control mb-2"
+                  value={userToEdit.phone || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, phone: e.target.value }))}
+                />
+                <input
+                  className="form-control mb-2"
+                  value={userToEdit.role || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, role: e.target.value }))}
+                />
+                <select
+                  className="form-control"
+                  value={userToEdit.status || "Active"}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, status: e.target.value }))}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  style={{ height: "45px" }}
+                  onClick={() => setShowEditModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  style={{ height: "45px" }}
+                  onClick={confirmEdit}
+                >
+                  Save
                 </button>
               </div>
             </div>
