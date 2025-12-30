@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import "./AddUser.css";
 
-const API_BASE_URL = "http://13.203.205.219:8000/accounts/";
+const API_BASE_URL = "http://13.203.205.219:8001/accounts/";
 
 function AddUser({ onUserAdded }) {
   const navigate = useNavigate();
