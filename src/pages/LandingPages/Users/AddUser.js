@@ -19,6 +19,10 @@ function AddUser({ onUserAdded }) {
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
 
+  // Password visibility state
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [password2Visible, setPassword2Visible] = useState(false);
+
   // Modal state
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessages, setErrorMessages] = useState([]);
@@ -66,11 +70,17 @@ function AddUser({ onUserAdded }) {
     } catch (err) {
       console.error("Error registering user:", err.response?.data || err);
 
-      // Backend validation errors
       const backendErrors = [];
-      if (err.response?.data) {
+
+      if (err.response?.data && typeof err.response.data === "object") {
         Object.entries(err.response.data).forEach(([field, msgs]) => {
-          backendErrors.push(`${field}: ${msgs.join(", ")}`);
+          const message = Array.isArray(msgs)
+            ? msgs.join(", ")
+            : typeof msgs === "string"
+            ? msgs
+            : "Invalid value";
+
+          backendErrors.push(`${field}: ${message}`);
         });
       } else {
         backendErrors.push("Failed to register user");
@@ -84,6 +94,7 @@ function AddUser({ onUserAdded }) {
   return (
     <>
       <Navbar />
+
       <div className="container">
         <div className="card shadow mt-4">
           <div className="card-body">
@@ -100,7 +111,6 @@ function AddUser({ onUserAdded }) {
                   placeholder="First Name"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  required
                 />
               </div>
 
@@ -114,7 +124,6 @@ function AddUser({ onUserAdded }) {
                   placeholder="Last Name"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  required
                 />
               </div>
 
@@ -129,7 +138,6 @@ function AddUser({ onUserAdded }) {
                   placeholder="Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
                 />
               </div>
 
@@ -144,7 +152,6 @@ function AddUser({ onUserAdded }) {
                   placeholder="Phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  required
                 />
               </div>
 
@@ -157,7 +164,6 @@ function AddUser({ onUserAdded }) {
                   className="form-select"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  required
                 >
                   <option value="">Select Role</option>
                   <option value="User">User</option>
@@ -171,13 +177,19 @@ function AddUser({ onUserAdded }) {
                   <i className="fa fa-lock"></i>
                 </span>
                 <input
-                  type="password"
+                  type={passwordVisible ? "text" : "password"}
                   className="form-control"
                   placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
                 />
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => setPasswordVisible(!passwordVisible)}
+                >
+                  {passwordVisible ? "Hide" : "Show"}
+                </button>
               </div>
 
               {/* Confirm Password */}
@@ -186,13 +198,19 @@ function AddUser({ onUserAdded }) {
                   <i className="fa fa-lock"></i>
                 </span>
                 <input
-                  type="password"
+                  type={password2Visible ? "text" : "password"}
                   className="form-control"
                   placeholder="Confirm Password"
                   value={password2}
                   onChange={(e) => setPassword2(e.target.value)}
-                  required
                 />
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => setPassword2Visible(!password2Visible)}
+                >
+                  {password2Visible ? "Hide" : "Show"}
+                </button>
               </div>
 
               {/* Buttons */}
@@ -213,7 +231,7 @@ function AddUser({ onUserAdded }) {
         </div>
       </div>
 
-      {/* Error modal */}
+      {/* Error Modal */}
       {showErrorModal && (
         <div className="modal show fade d-block" tabIndex="-1">
           <div className="modal-dialog modal-dialog-centered">
@@ -224,7 +242,7 @@ function AddUser({ onUserAdded }) {
                   type="button"
                   className="btn-close"
                   onClick={() => setShowErrorModal(false)}
-                ></button>
+                />
               </div>
               <div className="modal-body">
                 <ul>
