@@ -13,7 +13,10 @@ function Navbar() {
   };
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm fixed-top">
+    <nav
+      className="navbar navbar-expand-lg navbar-dark shadow-sm fixed-top"
+      style={{ backgroundColor: "rgb(25 135 84)" }}
+    >
       <div className="container-fluid">
         <div className="d-flex align-items-center">
           <img src={logo} alt="Logo" width="40" height="40" className="me-2" />
