@@ -15,7 +15,7 @@ function UserAdd() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [itemsPerPage] = useState(5);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
@@ -23,23 +23,26 @@ function UserAdd() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [userToEdit, setUserToEdit] = useState(null);
 
+  const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
+  const [showPassword2, setShowPassword2] = useState(false); // Toggle confirm password visibility
+
   const navigate = useNavigate();
 
   useEffect(() => {
     loadUsers();
   }, []);
 
-  // LOAD USERS
+  // Load all users
   const loadUsers = () => {
     setLoading(true);
     axios
       .get(API_URL)
-      .then((res) => setUsers(res.data))
+      .then((res) => setUsers(res.data)) // Use res.data here
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   };
 
-  // SEARCH FILTER
+  // Filter users based on First_Name, Last_Name, email, or phone
   const filteredUsers = users.filter(
     (u) =>
       (u.First_Name && u.First_Name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -48,52 +51,59 @@ function UserAdd() {
       (u.phone && u.phone.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // PAGINATION
+  // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
-  // DELETE USER ✅
+  // Confirm delete user
   const confirmDelete = () => {
-    if (!userToDelete) return;
+    if (userToDelete) {
+      const deletedUserId = userToDelete.id;
 
-    axios
-      .delete(`${USER_API_URL}${userToDelete.id}/`)
-      .then(() => {
-        setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
-        setShowDeleteModal(false);
-        setUserToDelete(null);
-      })
-      .catch((err) => console.error("DELETE ERROR:", err));
+      // Optimistically update the UI state
+      setUsers((prev) => prev.filter((u) => u.id !== deletedUserId));
+
+      axios
+        .delete(`${USER_API_URL}${deletedUserId}/`)
+        .then(() => {
+          setShowDeleteModal(false);
+          setUserToDelete(null);
+        })
+        .catch((err) => {
+          // Rollback in case of error (re-fetch users)
+          loadUsers();
+          console.error(err);
+        });
+    }
   };
 
-  // EDIT USER ✅ (PUT ONLY)
+  // Confirm edit user
   const confirmEdit = () => {
-    if (!userToEdit) return;
+    if (userToEdit.password !== userToEdit.password2) {
+      alert("Passwords do not match!");
+      return;
+    }
 
-    // ⚠️ SEND ONLY REQUIRED / EDITABLE FIELDS
-    const payload = {
-      First_Name: userToEdit.First_Name,
-      Last_Name: userToEdit.Last_Name,
-      email: userToEdit.email,
-      phone: userToEdit.phone,
-      role: userToEdit.role,
-      status: userToEdit.status,
-    };
+    if (!userToEdit.password) delete userToEdit.password; // Don't send empty password
+
+    const payload = { ...userToEdit };
+
+    // Optimistically update the state before the API request
+    setUsers((prevUsers) =>
+      prevUsers.map((u) => (u.id === userToEdit.id ? { ...u, ...userToEdit } : u))
+    );
 
     axios
-      .put(`${USER_API_URL}${userToEdit.id}/`, payload, {
-        headers: { "Content-Type": "application/json" },
-      })
-      .then((res) => {
-        setUsers((prev) => prev.map((u) => (u.id === userToEdit.id ? res.data : u)));
+      .put(`${USER_API_URL}${userToEdit.id}/`, payload)
+      .then(() => {
         setShowEditModal(false);
         setUserToEdit(null);
       })
       .catch((err) => {
-        console.error("EDIT ERROR:", err.response?.data || err);
-        alert("Update failed. Check console.");
+        loadUsers(); // Re-fetch users if update failed
+        console.error(err);
       });
   };
 
@@ -107,13 +117,13 @@ function UserAdd() {
             <div className="card-body p-4">
               <h3 className="fw-bold text-primary mb-4">Users</h3>
 
-              {/* SEARCH + ADD */}
-              <div className="row mb-4">
-                <div className="col-md-8 position-relative">
+              {/* Search and Add */}
+              <div className="row mb-4 align-items-center">
+                <div className="col-12 col-md-8 position-relative mb-2 mb-md-0">
                   <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-primary" />
                   <input
-                    className="form-control ps-5 rounded-pill"
-                    placeholder="Search..."
+                    className="form-control ps-5 rounded-pill shadow-sm"
+                    placeholder="Search by name, email, or phone..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -121,9 +131,9 @@ function UserAdd() {
                     }}
                   />
                 </div>
-                <div className="col-md-4 text-end">
+                <div className="col-12 col-md-4 text-md-end text-center">
                   <button
-                    className="btn btn-success rounded-pill px-4"
+                    className="btn btn-success rounded-pill shadow-sm px-4"
                     onClick={() => navigate("/pages/landing-pages/user/AddUser")}
                   >
                     <FaPlus className="me-2" />
@@ -132,85 +142,91 @@ function UserAdd() {
                 </div>
               </div>
 
-              {/* TABLE */}
+              {/* Table */}
               {loading ? (
-                <div className="text-center text-primary fw-bold">Loading...</div>
+                <div className="text-center py-5 fw-bold text-primary">Loading...</div>
               ) : (
-                <table className="table table-bordered table-hover text-center">
-                  <thead className="table-dark">
-                    <tr>
-                      <th>ID</th>
-                      <th>First</th>
-                      <th>Last</th>
-                      <th>Email</th>
-                      <th>Phone</th>
-                      <th>Role</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentUsers.length === 0 ? (
+                <div className="table-responsive border rounded-3">
+                  <table className="table table-bordered table-hover align-middle text-center mb-0">
+                    <thead className="table-dark">
                       <tr>
-                        <td colSpan="8">No users found</td>
+                        <th>ID</th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                       </tr>
-                    ) : (
-                      currentUsers.map((user) => (
-                        <tr key={user.id}>
-                          <td>{user.id}</td>
-                          <td>{user.First_Name}</td>
-                          <td>{user.Last_Name}</td>
-                          <td>{user.email}</td>
-                          <td>{user.phone}</td>
-                          <td>{user.role}</td>
-                          <td>
-                            <span
-                              className={`badge ${
-                                user.status === "Active" ? "bg-success" : "bg-danger"
-                              }`}
-                            >
-                              {user.status}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              className="btn btn-warning btn-sm me-2"
-                              onClick={() => {
-                                setUserToEdit({ ...user });
-                                setShowEditModal(true);
-                              }}
-                            >
-                              <FaEdit />
-                            </button>
-                            <button
-                              className="btn btn-danger btn-sm"
-                              onClick={() => {
-                                setUserToDelete(user);
-                                setShowDeleteModal(true);
-                              }}
-                            >
-                              <FaTrashAlt />
-                            </button>
+                    </thead>
+                    <tbody>
+                      {currentUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="text-muted py-4">
+                            No users found
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        currentUsers.map((user) => (
+                          <tr key={user.id}>
+                            <td>{user.id}</td>
+                            <td>{user.First_Name || "-"}</td>
+                            <td>{user.Last_Name || "-"}</td>
+                            <td>{user.email || "-"}</td>
+                            <td>{user.phone || "-"}</td>
+                            <td>{user.role || "-"}</td>
+                            <td>
+                              <span
+                                className={`badge rounded-pill px-3 py-2 ${
+                                  user.status === "Active" ? "bg-success" : "bg-danger"
+                                }`}
+                              >
+                                {user.status}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="d-flex justify-content-center">
+                                <button
+                                  className="btn btn-outline-warning btn-sm rounded-circle me-2"
+                                  onClick={() => {
+                                    setUserToEdit({ ...user });
+                                    setShowEditModal(true);
+                                  }}
+                                >
+                                  <FaEdit />
+                                </button>
+                                <button
+                                  className="btn btn-outline-danger btn-sm rounded-circle"
+                                  onClick={() => {
+                                    setUserToDelete(user);
+                                    setShowDeleteModal(true);
+                                  }}
+                                >
+                                  <FaTrashAlt />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
-              {/* PAGINATION */}
+              {/* Pagination */}
               {totalPages > 1 && (
-                <div className="text-center">
-                  {[...Array(totalPages)].map((_, i) => (
+                <div className="d-flex flex-wrap justify-content-center mt-4">
+                  {[...Array(totalPages)].map((_, index) => (
                     <button
-                      key={i}
-                      className={`btn btn-sm mx-1 ${
-                        currentPage === i + 1 ? "btn-primary" : "btn-outline-primary"
+                      key={index}
+                      className={`btn btn-sm rounded-pill mx-1 my-1 ${
+                        currentPage === index + 1 ? "btn-primary shadow" : "btn-outline-primary"
                       }`}
-                      onClick={() => setCurrentPage(i + 1)}
+                      onClick={() => setCurrentPage(index + 1)}
                     >
-                      {i + 1}
+                      {index + 1}
                     </button>
                   ))}
                 </div>
@@ -220,26 +236,30 @@ function UserAdd() {
         </div>
       </div>
 
-      {/* DELETE MODAL */}
-      {showDeleteModal && (
-        <div className="modal show d-block">
+      {/* Delete Modal */}
+      {showDeleteModal && userToDelete && (
+        <div className="modal show fade d-block" tabIndex="-1">
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5>Delete User</h5>
-                <button className="btn-close" onClick={() => setShowDeleteModal(false)} />
-              </div>
-              <div className="modal-body">Are you sure?</div>
-              <div className="modal-footer">
+                <h5 className="modal-title">Delete User</h5>
                 <button
-                  className="btn btn-secondary"
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowDeleteModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">Are you sure you want to delete this user?</div>
+              <div className="modal-footer d-flex justify-content-center gap-2">
+                <button
+                  className="btn btn-secondary flex-fill"
                   style={{ height: "45px" }}
                   onClick={() => setShowDeleteModal(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="btn btn-danger"
+                  className="btn btn-danger flex-fill"
                   style={{ height: "45px" }}
                   onClick={confirmDelete}
                 >
@@ -251,60 +271,110 @@ function UserAdd() {
         </div>
       )}
 
-      {/* EDIT MODAL */}
+      {/* Edit Modal */}
       {showEditModal && userToEdit && (
-        <div className="modal show d-block">
+        <div className="modal show fade d-block" tabIndex="-1">
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5>Edit User</h5>
-                <button className="btn-close" onClick={() => setShowEditModal(false)} />
+                <h5 className="modal-title">Edit User</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowEditModal(false)}
+                ></button>
               </div>
               <div className="modal-body">
                 <input
                   className="form-control mb-2"
-                  value={userToEdit.First_Name || ""}
-                  onChange={(e) => setUserToEdit((p) => ({ ...p, First_Name: e.target.value }))}
+                  placeholder="First Name"
+                  value={userToEdit?.First_Name || ""}
+                  onChange={(e) =>
+                    setUserToEdit((prev) => ({ ...prev, First_Name: e.target.value }))
+                  }
                 />
                 <input
                   className="form-control mb-2"
-                  value={userToEdit.Last_Name || ""}
-                  onChange={(e) => setUserToEdit((p) => ({ ...p, Last_Name: e.target.value }))}
+                  placeholder="Last Name"
+                  value={userToEdit?.Last_Name || ""}
+                  onChange={(e) =>
+                    setUserToEdit((prev) => ({ ...prev, Last_Name: e.target.value }))
+                  }
                 />
                 <input
                   className="form-control mb-2"
-                  value={userToEdit.email || ""}
-                  onChange={(e) => setUserToEdit((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="Email"
+                  value={userToEdit?.email || ""}
+                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, email: e.target.value }))}
                 />
                 <input
                   className="form-control mb-2"
-                  value={userToEdit.phone || ""}
-                  onChange={(e) => setUserToEdit((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="Phone"
+                  value={userToEdit?.phone || ""}
+                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, phone: e.target.value }))}
                 />
                 <input
                   className="form-control mb-2"
-                  value={userToEdit.role || ""}
-                  onChange={(e) => setUserToEdit((p) => ({ ...p, role: e.target.value }))}
+                  placeholder="Role"
+                  value={userToEdit?.role || ""}
+                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, role: e.target.value }))}
                 />
+                {/* Password field */}
+                <div className="input-group mb-2">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    className="form-control"
+                    placeholder="Password"
+                    value={userToEdit?.password || ""}
+                    onChange={(e) =>
+                      setUserToEdit((prev) => ({ ...prev, password: e.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <div className="input-group mb-2">
+                  <input
+                    type={showPassword2 ? "text" : "password"}
+                    className="form-control"
+                    placeholder="Confirm Password"
+                    value={userToEdit?.password2 || ""}
+                    onChange={(e) =>
+                      setUserToEdit((prev) => ({ ...prev, password2: e.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={() => setShowPassword2((prev) => !prev)}
+                  >
+                    {showPassword2 ? "Hide" : "Show"}
+                  </button>
+                </div>
                 <select
-                  className="form-control"
-                  value={userToEdit.status || "Active"}
-                  onChange={(e) => setUserToEdit((p) => ({ ...p, status: e.target.value }))}
+                  className="form-control mb-2"
+                  value={userToEdit?.status || "Active"}
+                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, status: e.target.value }))}
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer d-flex justify-content-center gap-2">
                 <button
-                  className="btn btn-secondary"
+                  className="btn btn-secondary flex-fill"
                   style={{ height: "45px" }}
                   onClick={() => setShowEditModal(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-primary flex-fill"
                   style={{ height: "45px" }}
                   onClick={confirmEdit}
                 >
