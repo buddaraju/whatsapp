@@ -7,8 +7,8 @@ import Navbar from "./Navbar";
 import "./UserAdd.css";
 
 // API URLs
-const API_URL = "http://13.203.205.219:8000/accounts/users/";
-const USER_API_URL = "http://13.203.205.219:8000/accounts/user/";
+const API_URL = "http://13.203.205.219:8001/accounts/users/";
+const USER_API_URL = "http://13.203.205.219:8001/accounts/user/";
 
 function UserAdd() {
   const [users, setUsers] = useState([]);
