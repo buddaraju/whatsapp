@@ -4,40 +4,69 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { FaEdit, FaTrashAlt, FaPlus, FaSearch } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
-import "./UserAdd.css";
 
-const API_URL = "http://localhost:8000/users/";
+// API URLs
+const API_URL = "http://13.203.205.219:8001/accounts/users/";
+const USER_API_URL = "http://13.203.205.219:8001/accounts/user/";
 
 function UserAdd() {
-  const [users, setUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
-
   const navigate = useNavigate();
 
+  // 🔐 Auth
+  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+
+  // 🚫 Redirect if not logged in
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (!token) {
+      navigate("/pages/authentication/sign-in");
+    }
+  }, [token, navigate]);
 
-  const loadUsers = () => {
-    setLoading(true);
-    axios
-      .get(API_URL)
-      .then((res) => setUsers(res.data))
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
-  };
+  // 📦 State
+  const [users, setUsers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
+  const itemsPerPage = 5;
+
+  // 🔄 Load users
+  useEffect(() => {
+    if (token) {
+      axios
+        .get(API_URL, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((res) => setUsers(res.data))
+        .catch(console.error);
+    }
+  }, [token]);
+
+  // 🔍 Search filter
   const filteredUsers = users.filter(
-    (u) => u.user_fullname && u.user_fullname.toLowerCase().includes(searchTerm.toLowerCase())
+    (u) =>
+      u.First_Name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.Last_Name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.phone?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // 📄 Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+
+  // 🗑 Delete user
+  const deleteUser = (id) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
+
+    axios
+      .delete(`${USER_API_URL}${id}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then(() => setUsers((prev) => prev.filter((u) => u.id !== id)))
+      .catch(console.error);
+  };
 
   return (
     <>
@@ -45,21 +74,17 @@ function UserAdd() {
 
       <div className="container-fluid bg-light min-vh-100 pt-5">
         <div className="container mt-4">
-          <div className="card shadow-lg border-0 rounded-4">
+          <div className="card shadow border-0 rounded-4">
             <div className="card-body p-4">
-              {/* Header */}
-              <h3 className="fw-bold text-primary mb-4">
-                Users
-                <span className="badge bg-secondary ms-2">{filteredUsers.length}</span>
-              </h3>
+              <h3 className="fw-bold text-primary mb-4">Users</h3>
 
-              {/* Search and Add button row */}
+              {/* Search & Add */}
               <div className="row mb-4 align-items-center">
                 <div className="col-md-8 position-relative">
-                  <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-primary" />
+                  <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
                   <input
-                    className="form-control ps-5 rounded-pill shadow-sm"
-                    placeholder="Search user..."
+                    className="form-control ps-5 rounded-pill"
+                    placeholder="Search by name, email or phone..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -69,8 +94,8 @@ function UserAdd() {
                 </div>
                 <div className="col-md-4 text-end">
                   <button
-                    className="btn btn-success rounded-pill shadow-sm px-4"
-                    onClick={() => navigate("/pages/landing-pages/user/AddUser.js")}
+                    className="btn btn-success rounded-pill px-4"
+                    onClick={() => navigate("/pages/landing-pages/user/AddUser")}
                   >
                     <FaPlus className="me-2" />
                     Add User
@@ -79,56 +104,65 @@ function UserAdd() {
               </div>
 
               {/* Table */}
-              {loading ? (
-                <div className="text-center py-5 fw-bold text-primary">Loading...</div>
-              ) : (
-                <div className="table-responsive">
-                  <table className="table table-hover align-middle text-center mb-0">
-                    <thead className="table-dark">
+              <div className="table-responsive">
+                <table className="table table-bordered table-hover align-middle text-center">
+                  <thead className="table-dark">
+                    <tr>
+                      <th>ID</th>
+                      <th>First Name</th>
+                      <th>Last Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentUsers.length === 0 ? (
                       <tr>
-                        <th>id</th>
-                        <th>Full Name</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <td colSpan="8" className="text-muted py-4">
+                          No users found
+                        </td>
                       </tr>
-                    </thead>
-
-                    <tbody>
-                      {currentUsers.length === 0 ? (
-                        <tr>
-                          <td colSpan="4" className="text-muted py-4">
-                            No users found
+                    ) : (
+                      currentUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td>{user.id}</td>
+                          <td>{user.First_Name || "-"}</td>
+                          <td>{user.Last_Name || "-"}</td>
+                          <td>{user.email || "-"}</td>
+                          <td>{user.phone || "-"}</td>
+                          <td>{user.role || "-"}</td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                user.status === "Active" ? "bg-success" : "bg-danger"
+                              }`}
+                            >
+                              {user.status}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-warning btn-sm me-2"
+                              onClick={() => navigate(`/pages/landing-pages/user/edit/${user.id}`)}
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => deleteUser(user.id)}
+                            >
+                              <FaTrashAlt />
+                            </button>
                           </td>
                         </tr>
-                      ) : (
-                        currentUsers.map((user, index) => (
-                          <tr key={user.id}>
-                            <td>{indexOfFirstItem + index + 1}</td>
-                            <td className="fw-semibold">{user.user_fullname}</td>
-                            <td>
-                              <span
-                                className={`badge rounded-pill px-3 py-2 ${
-                                  user.user_status === "Active" ? "bg-success" : "bg-danger"
-                                }`}
-                              >
-                                {user.user_status}
-                              </span>
-                            </td>
-                            <td>
-                              <button className="btn btn-outline-warning btn-sm rounded-circle me-2">
-                                <FaEdit />
-                              </button>
-                              <button className="btn btn-outline-danger btn-sm rounded-circle">
-                                <FaTrashAlt />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
@@ -136,8 +170,8 @@ function UserAdd() {
                   {[...Array(totalPages)].map((_, index) => (
                     <button
                       key={index}
-                      className={`btn btn-sm rounded-pill mx-1 ${
-                        currentPage === index + 1 ? "btn-primary shadow" : "btn-outline-primary"
+                      className={`btn btn-sm mx-1 ${
+                        currentPage === index + 1 ? "btn-primary" : "btn-outline-primary"
                       }`}
                       onClick={() => setCurrentPage(index + 1)}
                     >

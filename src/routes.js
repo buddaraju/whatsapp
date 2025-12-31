@@ -90,7 +90,7 @@ const routes = [
   {
     name: "newuser",
     icon: <LoginIcon sx={{ color: "#d32f2f", fontSize: 28 }} />,
-    route: "/pages/landing-pages/user/AddUser.js",
+    route: "/pages/landing-pages/user/AddUser",
     component: <AddUser />,
     displayInNavbar: false, // <-- Hide in navbar
   },
