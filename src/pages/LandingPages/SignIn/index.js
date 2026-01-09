@@ -1,7 +1,8 @@
 import { useState } from "react";
+import axios from "axios";
 
 // react-router-dom components
-//import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 // @mui material components
 import Card from "@mui/material/Card";
@@ -21,33 +22,51 @@ import MKInput from "components/MKInput";
 import MKButton from "components/MKButton";
 
 // Dev Infotech example components
-// import DefaultNavbar from "examples/Navbars/DefaultNavbar";
 import SimpleFooter from "examples/Footers/SimpleFooter";
-
-// Dev Infotech page layout routes
-// import routes from "routes";
 
 // Images
 import bgImage from "assets/images/bg-sign-in-basic.jpeg";
 
 function SignInBasic() {
+  const navigate = useNavigate(); // for navigation after login
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSetRememberMe = () => setRememberMe(!rememberMe);
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const response = await axios.post("http://13.203.200.255:8000/accounts/login/", {
+        email,
+        password,
+      });
+
+      console.log("Login successful:", response.data);
+
+      // If your backend returns a token
+      if (response.data.token) {
+        if (rememberMe) {
+          localStorage.setItem("token", response.data.token); // persist across sessions
+        } else {
+          sessionStorage.setItem("token", response.data.token); // only for this session
+        }
+      }
+
+      // Navigate to dashboard or home page
+      navigate("/pages/landing-pages/user"); // change this to your route
+    } catch (err) {
+      console.error("Login error:", err.response?.data || err.message);
+      setError(err.response?.data?.detail || "Login failed");
+    }
+  };
+
   return (
     <>
-      {/* <DefaultNavbar
-        routes={routes}
-        action={{
-          type: "external",
-          route: "https://www.ujrtechnologies.com/",
-          label: "BOOK A DEMO",
-          color: "info",
-        }}
-        transparent
-        light
-      /> */}
       <MKBox
         position="absolute"
         top={0}
@@ -105,10 +124,22 @@ function SignInBasic() {
               <MKBox pt={4} pb={3} px={3}>
                 <MKBox component="form" role="form">
                   <MKBox mb={2}>
-                    <MKInput type="email" label="Email" fullWidth />
+                    <MKInput
+                      type="email"
+                      label="Email"
+                      fullWidth
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
                   </MKBox>
                   <MKBox mb={2}>
-                    <MKInput type="password" label="Password" fullWidth />
+                    <MKInput
+                      type="password"
+                      label="Password"
+                      fullWidth
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
                   </MKBox>
                   <MKBox display="flex" alignItems="center" ml={-1}>
                     <Switch checked={rememberMe} onChange={handleSetRememberMe} />
@@ -122,25 +153,15 @@ function SignInBasic() {
                       &nbsp;&nbsp;Remember me
                     </MKTypography>
                   </MKBox>
+                  {error && (
+                    <MKTypography variant="body2" color="error" align="center" mt={2}>
+                      {error}
+                    </MKTypography>
+                  )}
                   <MKBox mt={4} mb={1}>
-                    <MKButton variant="gradient" color="info" fullWidth>
-                      sign in
+                    <MKButton variant="gradient" color="info" fullWidth onClick={handleLogin}>
+                      Sign in
                     </MKButton>
-                  </MKBox>
-                  <MKBox mt={3} mb={1} textAlign="center">
-                    {/* <MKTypography variant="button" color="text">
-                      Don&apos;t have an account?{" "}
-                      <MKTypography
-                        component={Link}
-                        to="/pages/authentication/sign-up"
-                        variant="button"
-                        color="info"
-                        fontWeight="medium"
-                        textGradient
-                      >
-                        Sign up
-                      </MKTypography>
-                    </MKTypography> */}
                   </MKBox>
                 </MKBox>
               </MKBox>
