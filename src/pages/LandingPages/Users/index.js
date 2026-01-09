@@ -1,30 +1,31 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { FaEdit, FaTrashAlt, FaPlus, FaSearch } from "react-icons/fa";
+import { FaEdit, FaTrashAlt, FaPlus, FaSearch, FaDownload, FaUpload } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import "./UserAdd.css";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 // API URLs
-const API_URL = "http://13.203.205.219:8001/accounts/users/";
-const USER_API_URL = "http://13.203.205.219:8001/accounts/user/";
+const API_URL = "http://13.203.200.255:8002/accounts/users";
+const USER_API_URL = "http://13.203.200.255:8000/accounts/user";
 
 function UserAdd() {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const itemsPerPage = 5;
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [userToEdit, setUserToEdit] = useState(null);
-
-  const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
-  const [showPassword2, setShowPassword2] = useState(false); // Toggle confirm password visibility
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
@@ -32,17 +33,17 @@ function UserAdd() {
     loadUsers();
   }, []);
 
-  // Load all users
+  // LOAD USERS
   const loadUsers = () => {
     setLoading(true);
     axios
       .get(API_URL)
-      .then((res) => setUsers(res.data)) // Use res.data here
+      .then((res) => setUsers(res.data))
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   };
 
-  // Filter users based on First_Name, Last_Name, email, or phone
+  // SEARCH FILTER
   const filteredUsers = users.filter(
     (u) =>
       (u.First_Name && u.First_Name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -51,60 +52,114 @@ function UserAdd() {
       (u.phone && u.phone.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Pagination logic
+  // PAGINATION
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
-  // Confirm delete user
+  // DELETE USER ✅
   const confirmDelete = () => {
-    if (userToDelete) {
-      const deletedUserId = userToDelete.id;
-
-      // Optimistically update the UI state
-      setUsers((prev) => prev.filter((u) => u.id !== deletedUserId));
-
-      axios
-        .delete(`${USER_API_URL}${deletedUserId}/`)
-        .then(() => {
-          setShowDeleteModal(false);
-          setUserToDelete(null);
-        })
-        .catch((err) => {
-          // Rollback in case of error (re-fetch users)
-          loadUsers();
-          console.error(err);
-        });
-    }
-  };
-
-  // Confirm edit user
-  const confirmEdit = () => {
-    if (userToEdit.password !== userToEdit.password2) {
-      alert("Passwords do not match!");
-      return;
-    }
-
-    if (!userToEdit.password) delete userToEdit.password; // Don't send empty password
-
-    const payload = { ...userToEdit };
-
-    // Optimistically update the state before the API request
-    setUsers((prevUsers) =>
-      prevUsers.map((u) => (u.id === userToEdit.id ? { ...u, ...userToEdit } : u))
-    );
+    if (!userToDelete) return;
 
     axios
-      .put(`${USER_API_URL}${userToEdit.id}/`, payload)
+      .delete(`${USER_API_URL}${userToDelete.id}/`)
       .then(() => {
+        setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+        setShowDeleteModal(false);
+        setUserToDelete(null);
+      })
+      .catch((err) => console.error("DELETE ERROR:", err));
+  };
+
+  // EDIT USER ✅ (PUT ONLY)
+  const confirmEdit = () => {
+    if (!userToEdit) return;
+
+    const payload = {
+      First_Name: userToEdit.First_Name,
+      Last_Name: userToEdit.Last_Name,
+      email: userToEdit.email,
+      phone: userToEdit.phone,
+      role: userToEdit.role,
+      organization: userToEdit.organization,
+      status: userToEdit.status,
+      password: userToEdit.password,
+      password2: userToEdit.password2,
+    };
+
+    axios
+      .put(`${USER_API_URL}${userToEdit.id}/`, payload, {
+        headers: { "Content-Type": "application/json" },
+      })
+      .then((res) => {
+        setUsers((prev) => prev.map((u) => (u.id === userToEdit.id ? res.data : u)));
         setShowEditModal(false);
         setUserToEdit(null);
       })
       .catch((err) => {
-        loadUsers(); // Re-fetch users if update failed
-        console.error(err);
+        console.error("EDIT ERROR:", err.response?.data || err);
+        alert("Update failed. Check console.");
       });
+  };
+
+  // IMPORT EXCEL FILE
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const data = evt.target.result;
+      const workbook = XLSX.read(data, { type: "binary" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+      console.log("Imported Data:", jsonData);
+      // OPTIONAL: send to API
+      // jsonData.forEach(user => axios.post(API_URL, user));
+      alert("data imported successfully ");
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // EXPORT USERS TO CSV
+  const handleExport = () => {
+    const csvHeader = [
+      "ID",
+      "First Name",
+      "Last Name",
+      "Email",
+      "Phone",
+      "Role",
+      "Organization",
+      "Status",
+    ];
+
+    const csvRows = users.map((u) => [
+      u.id,
+      u.First_Name,
+      u.Last_Name,
+      u.email,
+      u.phone,
+      u.role,
+      u.organization,
+      u.status,
+    ]);
+
+    const csvContent = [csvHeader, ...csvRows].map((e) => e.join(",")).join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    // 👉 username OR email
+    const name = localStorage.getItem("username") || localStorage.getItem("email") || "user";
+
+    const safeName = name.replace(/[@.]/g, "_");
+
+    saveAs(blob, `${safeName}_users.csv`);
   };
 
   return (
@@ -117,13 +172,13 @@ function UserAdd() {
             <div className="card-body p-4">
               <h3 className="fw-bold text-primary mb-4">Users</h3>
 
-              {/* Search and Add */}
-              <div className="row mb-4 align-items-center">
-                <div className="col-12 col-md-8 position-relative mb-2 mb-md-0">
+              {/* SEARCH + ADD */}
+              <div className="row mb-4">
+                <div className="col-md-8 position-relative">
                   <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-primary" />
                   <input
-                    className="form-control ps-5 rounded-pill shadow-sm"
-                    placeholder="Search by name, email, or phone..."
+                    className="form-control ps-5 rounded-pill"
+                    placeholder="Search..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -131,9 +186,9 @@ function UserAdd() {
                     }}
                   />
                 </div>
-                <div className="col-12 col-md-4 text-md-end text-center">
+                <div className="col-md-4 text-end">
                   <button
-                    className="btn btn-success rounded-pill shadow-sm px-4"
+                    className="btn btn-success rounded-pill px-4"
                     onClick={() => navigate("/pages/landing-pages/user/AddUser")}
                   >
                     <FaPlus className="me-2" />
@@ -142,91 +197,110 @@ function UserAdd() {
                 </div>
               </div>
 
-              {/* Table */}
+              {/* TABLE */}
               {loading ? (
-                <div className="text-center py-5 fw-bold text-primary">Loading...</div>
+                <div className="text-center text-primary fw-bold">Loading...</div>
               ) : (
-                <div className="table-responsive border rounded-3">
-                  <table className="table table-bordered table-hover align-middle text-center mb-0">
-                    <thead className="table-dark">
+                <table className="table table-bordered table-hover text-center">
+                  <thead className="table-dark">
+                    <tr>
+                      <th>ID</th>
+                      <th>First</th>
+                      <th>Last</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Role</th>
+                      <th>Organization</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentUsers.length === 0 ? (
                       <tr>
-                        <th>ID</th>
-                        <th>First Name</th>
-                        <th>Last Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <td colSpan="9">You do not have permission to perform this action</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {currentUsers.length === 0 ? (
-                        <tr>
-                          <td colSpan="8" className="text-muted py-4">
-                            No users found
+                    ) : (
+                      currentUsers.map((user, index) => (
+                        <tr key={user.id}>
+                          <td>{indexOfFirstItem + index + 1}</td>
+                          <td>{user.First_Name}</td>
+                          <td>{user.last_name}</td>
+                          <td>{user.email}</td>
+                          <td>{user.phone}</td>
+                          <td>{user.role}</td>
+                          <td>{user.organization}</td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                user.status === "Active" ? "bg-success" : "bg-danger"
+                              }`}
+                            >
+                              {user.status}
+                            </span>
+                          </td>
+                          <td className="d-flex justify-content-center gap-2">
+                            {/* Edit */}
+                            <button
+                              className="btn btn-outline-warning btn-sm d-flex align-items-center justify-content-center"
+                              style={{ width: "40px", height: "40px" }}
+                              onClick={() => {
+                                setUserToEdit({ ...user });
+                                setShowEditModal(true);
+                              }}
+                            >
+                              <FaEdit />
+                            </button>
+
+                            {/* Delete */}
+                            <button
+                              className="btn btn-outline-danger btn-sm d-flex align-items-center justify-content-center"
+                              style={{ width: "40px", height: "40px" }}
+                              onClick={() => {
+                                setUserToDelete(user);
+                                setShowDeleteModal(true);
+                              }}
+                            >
+                              <FaTrashAlt />
+                            </button>
+
+                            {/* Import */}
+                            <button
+                              className="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center"
+                              style={{ width: "40px", height: "40px" }}
+                              onClick={handleImport}
+                            >
+                              <FaUpload />
+                            </button>
+
+                            {/* Export */}
+                            <button
+                              className="btn btn-outline-success btn-sm d-flex align-items-center justify-content-center mb-0"
+                              style={{ width: "40px", height: "40px", cursor: "pointer" }}
+                              onClick={handleExport} // ✅ Directly triggers download
+                            >
+                              <FaDownload />
+                            </button>
                           </td>
                         </tr>
-                      ) : (
-                        currentUsers.map((user) => (
-                          <tr key={user.id}>
-                            <td>{user.id}</td>
-                            <td>{user.First_Name || "-"}</td>
-                            <td>{user.Last_Name || "-"}</td>
-                            <td>{user.email || "-"}</td>
-                            <td>{user.phone || "-"}</td>
-                            <td>{user.role || "-"}</td>
-                            <td>
-                              <span
-                                className={`badge rounded-pill px-3 py-2 ${
-                                  user.status === "Active" ? "bg-success" : "bg-danger"
-                                }`}
-                              >
-                                {user.status}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="d-flex justify-content-center">
-                                <button
-                                  className="btn btn-outline-warning btn-sm rounded-circle me-2"
-                                  onClick={() => {
-                                    setUserToEdit({ ...user });
-                                    setShowEditModal(true);
-                                  }}
-                                >
-                                  <FaEdit />
-                                </button>
-                                <button
-                                  className="btn btn-outline-danger btn-sm rounded-circle"
-                                  onClick={() => {
-                                    setUserToDelete(user);
-                                    setShowDeleteModal(true);
-                                  }}
-                                >
-                                  <FaTrashAlt />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               )}
 
-              {/* Pagination */}
+              {/* PAGINATION */}
               {totalPages > 1 && (
-                <div className="d-flex flex-wrap justify-content-center mt-4">
-                  {[...Array(totalPages)].map((_, index) => (
+                <div className="text-center">
+                  {[...Array(totalPages)].map((_, i) => (
                     <button
-                      key={index}
-                      className={`btn btn-sm rounded-pill mx-1 my-1 ${
-                        currentPage === index + 1 ? "btn-primary shadow" : "btn-outline-primary"
+                      key={i}
+                      className={`btn btn-sm mx-1 ${
+                        currentPage === i + 1 ? "btn-primary" : "btn-outline-primary"
                       }`}
-                      onClick={() => setCurrentPage(index + 1)}
+                      onClick={() => setCurrentPage(i + 1)}
                     >
-                      {index + 1}
+                      {i + 1}
                     </button>
                   ))}
                 </div>
@@ -236,30 +310,26 @@ function UserAdd() {
         </div>
       </div>
 
-      {/* Delete Modal */}
-      {showDeleteModal && userToDelete && (
-        <div className="modal show fade d-block" tabIndex="-1">
+      {/* DELETE MODAL */}
+      {showDeleteModal && (
+        <div className="modal show d-block">
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Delete User</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowDeleteModal(false)}
-                ></button>
+                <h5>Delete User</h5>
+                <button className="btn-close" onClick={() => setShowDeleteModal(false)} />
               </div>
-              <div className="modal-body">Are you sure you want to delete this user?</div>
-              <div className="modal-footer d-flex justify-content-center gap-2">
+              <div className="modal-body">Are you sure?</div>
+              <div className="modal-footer">
                 <button
-                  className="btn btn-secondary flex-fill"
+                  className="btn btn-secondary"
                   style={{ height: "45px" }}
                   onClick={() => setShowDeleteModal(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="btn btn-danger flex-fill"
+                  className="btn btn-danger"
                   style={{ height: "45px" }}
                   onClick={confirmDelete}
                 >
@@ -271,110 +341,96 @@ function UserAdd() {
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* EDIT MODAL */}
       {showEditModal && userToEdit && (
-        <div className="modal show fade d-block" tabIndex="-1">
+        <div className="modal show d-block">
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Edit User</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowEditModal(false)}
-                ></button>
+                <h5>Edit User</h5>
+                <button className="btn-close" onClick={() => setShowEditModal(false)} />
               </div>
               <div className="modal-body">
                 <input
                   className="form-control mb-2"
-                  placeholder="First Name"
-                  value={userToEdit?.First_Name || ""}
-                  onChange={(e) =>
-                    setUserToEdit((prev) => ({ ...prev, First_Name: e.target.value }))
-                  }
+                  value={userToEdit.First_Name || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, First_Name: e.target.value }))}
                 />
                 <input
                   className="form-control mb-2"
-                  placeholder="Last Name"
-                  value={userToEdit?.Last_Name || ""}
-                  onChange={(e) =>
-                    setUserToEdit((prev) => ({ ...prev, Last_Name: e.target.value }))
-                  }
+                  value={userToEdit.Last_Name || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, Last_Name: e.target.value }))}
                 />
                 <input
                   className="form-control mb-2"
-                  placeholder="Email"
-                  value={userToEdit?.email || ""}
-                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, email: e.target.value }))}
+                  value={userToEdit.email || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, email: e.target.value }))}
                 />
                 <input
                   className="form-control mb-2"
-                  placeholder="Phone"
-                  value={userToEdit?.phone || ""}
-                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, phone: e.target.value }))}
+                  value={userToEdit.phone || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, phone: e.target.value }))}
                 />
                 <input
                   className="form-control mb-2"
-                  placeholder="Role"
-                  value={userToEdit?.role || ""}
-                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, role: e.target.value }))}
+                  value={userToEdit.role || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, role: e.target.value }))}
                 />
-                {/* Password field */}
+                <input
+                  className="form-control mb-2"
+                  value={userToEdit.organization || ""}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, organization: e.target.value }))}
+                />
                 <div className="input-group mb-2">
                   <input
                     type={showPassword ? "text" : "password"}
                     className="form-control"
-                    placeholder="Password"
                     value={userToEdit?.password || ""}
-                    onChange={(e) =>
-                      setUserToEdit((prev) => ({ ...prev, password: e.target.value }))
-                    }
+                    onChange={(e) => setUserToEdit((p) => ({ ...p, password: e.target.value }))}
                   />
                   <button
                     type="button"
                     className="btn btn-outline-secondary"
-                    onClick={() => setShowPassword((prev) => !prev)}
+                    onClick={() => setShowPassword((p) => !p)}
                   >
                     {showPassword ? "Hide" : "Show"}
                   </button>
                 </div>
                 <div className="input-group mb-2">
                   <input
-                    type={showPassword2 ? "text" : "password"}
+                    type={showConfirmPassword ? "text" : "password"}
                     className="form-control"
-                    placeholder="Confirm Password"
                     value={userToEdit?.password2 || ""}
-                    onChange={(e) =>
-                      setUserToEdit((prev) => ({ ...prev, password2: e.target.value }))
-                    }
+                    onChange={(e) => setUserToEdit((p) => ({ ...p, password2: e.target.value }))}
                   />
                   <button
                     type="button"
                     className="btn btn-outline-secondary"
-                    onClick={() => setShowPassword2((prev) => !prev)}
+                    onClick={() => setShowConfirmPassword((p) => !p)}
                   >
-                    {showPassword2 ? "Hide" : "Show"}
+                    {showConfirmPassword ? "Hide" : "Show"}
                   </button>
                 </div>
+
                 <select
-                  className="form-control mb-2"
-                  value={userToEdit?.status || "Active"}
-                  onChange={(e) => setUserToEdit((prev) => ({ ...prev, status: e.target.value }))}
+                  className="form-control"
+                  value={userToEdit.status || "Active"}
+                  onChange={(e) => setUserToEdit((p) => ({ ...p, status: e.target.value }))}
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
               </div>
-              <div className="modal-footer d-flex justify-content-center gap-2">
+              <div className="modal-footer">
                 <button
-                  className="btn btn-secondary flex-fill"
+                  className="btn btn-secondary"
                   style={{ height: "45px" }}
                   onClick={() => setShowEditModal(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="btn btn-primary flex-fill"
+                  className="btn btn-primary"
                   style={{ height: "45px" }}
                   onClick={confirmEdit}
                 >
