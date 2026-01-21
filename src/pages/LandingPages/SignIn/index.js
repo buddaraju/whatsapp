@@ -27,44 +27,57 @@ import SimpleFooter from "examples/Footers/SimpleFooter";
 // Images
 import bgImage from "assets/images/bg-sign-in-basic.jpeg";
 
+const BASE_URL = "http://127.0.0.1:8000/accounts";
+
 function SignInBasic() {
   const navigate = useNavigate(); // for navigation after login
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSetRememberMe = () => setRememberMe(!rememberMe);
-
+  const handleSetRememberMe = () => setRememberMe((prev) => !prev);
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     try {
-      const response = await axios.post("http://13.203.205.219:8001/accounts/login/", {
-        email,
-        password,
+      const token = btoa(`${email}:${password}`);
+
+      // 🔐 VERIFY LOGIN + GET ROLE
+      const res = await axios.get(`${BASE_URL}/user/`, {
+        headers: {
+          Authorization: `Basic ${token}`,
+        },
       });
 
-      console.log("Login successful:", response.data);
-
-      // If your backend returns a token
-      if (response.data.token) {
-        if (rememberMe) {
-          localStorage.setItem("token", response.data.token); // persist across sessions
-        } else {
-          sessionStorage.setItem("token", response.data.token); // only for this session
-        }
+      // ✅ Persist credentials (BasicAuth requirement)
+      if (rememberMe) {
+        localStorage.setItem("email", email);
+        localStorage.setItem("password", password);
+      } else {
+        sessionStorage.setItem("email", email);
+        sessionStorage.setItem("password", password);
       }
 
-      // Navigate to dashboard or home page
-      navigate("/pages/landing-pages/user"); // change this to your route
+      // 🔀 ROLE-BASED REDIRECT
+      // 🔀 ROLE-BASED REDIRECT
+      if (res.data.role === "Admin") {
+        navigate("/pages/landing-pages/user");
+      } else {
+        navigate("/pages/landing-pages/user");
+      }
     } catch (err) {
-      console.error("Login error:", err.response?.data || err.message);
-      setError(err.response?.data?.detail || "Login failed");
+      console.error("LOGIN ERROR:", err.response?.data || err);
+      setError("Invalid email or password");
+      localStorage.clear();
+      sessionStorage.clear();
+    } finally {
+      setLoading(false);
     }
   };
-
   return (
     <>
       <MKBox
@@ -122,7 +135,7 @@ function SignInBasic() {
                 </Grid>
               </MKBox>
               <MKBox pt={4} pb={3} px={3}>
-                <MKBox component="form" role="form">
+                <MKBox component="form" onSubmit={handleLogin}>
                   <MKBox mb={2}>
                     <MKInput
                       type="email"
@@ -159,8 +172,14 @@ function SignInBasic() {
                     </MKTypography>
                   )}
                   <MKBox mt={4} mb={1}>
-                    <MKButton variant="gradient" color="info" fullWidth onClick={handleLogin}>
-                      Sign in
+                    <MKButton
+                      variant="gradient"
+                      color="info"
+                      fullWidth
+                      type="submit"
+                      disabled={loading}
+                    >
+                      {loading ? "Signing in..." : "Sign in"}
                     </MKButton>
                   </MKBox>
                 </MKBox>
