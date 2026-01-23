@@ -1,100 +1,116 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import "./AddUser.css";
 
-const API_BASE_URL = "http://13.203.205.219:8001/accounts/";
+const API_BASE_URL = "http://127.0.0.1:8000/accounts";
+const ORG_API_URL = "http://127.0.0.1:8000/org/org";
+
+// 🔐 Basic Auth helper
+const getAuthHeader = () => {
+  const email = localStorage.getItem("email");
+  const password = localStorage.getItem("password");
+  return {
+    Authorization: "Basic " + btoa(`${email}:${password}`),
+  };
+};
 
 function AddUser({ onUserAdded }) {
   const navigate = useNavigate();
 
-  // 🔐 Auth token
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+  // Single form state (performance + clarity)
+  const [form, setForm] = useState({
+    First_Name: "",
+    Last_Name: "",
+    email: "",
+    phone: "",
+    role: "",
+    organization: "",
+    password: "",
+    password2: "",
+    status: "Active",
+  });
 
-  // 🚫 Redirect if not logged in
-  useEffect(() => {
-    if (!token) {
-      navigate("/pages/authentication/sign-in");
-    }
-  }, [token, navigate]);
-
-  // Form state
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [role, setRole] = useState("");
-  const [password, setPassword] = useState("");
-  const [password2, setPassword2] = useState("");
-
-  // Password visibility
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [password2Visible, setPassword2Visible] = useState(false);
-
-  // Error modal
+  const [organizations, setOrganizations] = useState([]);
+  const [loadingOrg, setLoadingOrg] = useState(false);
+  const [errors, setErrors] = useState([]);
   const [showErrorModal, setShowErrorModal] = useState(false);
-  const [errorMessages, setErrorMessages] = useState([]);
+
+  // Fetch organizations
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchOrganizations = async () => {
+      try {
+        setLoadingOrg(true);
+        const res = await axios.get(ORG_API_URL, {
+          headers: getAuthHeader(),
+        });
+        if (mounted) setOrganizations(res.data);
+      } catch (err) {
+        console.error("Organization fetch failed", err);
+      } finally {
+        if (mounted) setLoadingOrg(false);
+      }
+    };
+
+    fetchOrganizations();
+    return () => (mounted = false);
+  }, []);
+
+  // Memoized change handler
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
+  const validate = () => {
+    const errs = [];
+    if (!form.First_Name) errs.push("First Name is required");
+    if (!form.Last_Name) errs.push("Last Name is required");
+    if (!form.email) errs.push("Email is required");
+    if (!form.phone) errs.push("Phone is required");
+    if (!form.role) errs.push("Role is required");
+    if (!form.organization) errs.push("Organization is required");
+    if (!form.password) errs.push("Password is required");
+    if (form.password !== form.password2) errs.push("Passwords do not match");
+    return errs;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const errors = [];
-    if (!firstName) errors.push("First Name is required");
-    if (!lastName) errors.push("Last Name is required");
-    if (!email) errors.push("Email is required");
-    if (!phone) errors.push("Phone is required");
-    if (!role) errors.push("Role is required");
-    if (!password) errors.push("Password is required");
-    if (!password2) errors.push("Confirm Password is required");
-    if (password !== password2) errors.push("Passwords do not match");
-
-    if (errors.length > 0) {
-      setErrorMessages(errors);
+    const validationErrors = validate();
+    if (validationErrors.length) {
+      setErrors(validationErrors);
       setShowErrorModal(true);
       return;
     }
 
-    const payload = {
-      First_Name: firstName,
-      Last_Name: lastName,
-      email,
-      phone,
-      role,
-      status: "Active",
-      password,
-      password2,
-    };
-
     try {
-      const res = await axios.post(`${API_BASE_URL}register/`, payload, {
+      const res = await axios.post(`${API_BASE_URL}/register`, form, {
         headers: {
+          ...getAuthHeader(),
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // 🔐 send token
         },
       });
 
-      if (onUserAdded) onUserAdded(res.data);
+      onUserAdded?.(res.data);
       navigate("/pages/landing-pages/user");
     } catch (err) {
       const backendErrors = [];
 
-      if (err.response?.data && typeof err.response.data === "object") {
-        Object.entries(err.response.data).forEach(([field, msgs]) => {
-          const message = Array.isArray(msgs)
-            ? msgs.join(", ")
-            : typeof msgs === "string"
-            ? msgs
-            : "Invalid value";
-
-          backendErrors.push(`${field}: ${message}`);
+      if (err.response?.data) {
+        Object.entries(err.response.data).forEach(([k, v]) => {
+          backendErrors.push(`${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
         });
       } else {
-        backendErrors.push("Failed to register user");
+        backendErrors.push("Failed to create user");
       }
 
-      setErrorMessages(backendErrors);
+      setErrors(backendErrors);
       setShowErrorModal(true);
     }
   };
@@ -103,132 +119,81 @@ function AddUser({ onUserAdded }) {
     <>
       <Navbar />
 
-      <div className="container">
-        <div className="card shadow mt-4">
+      <div className="container mt-4">
+        <div className="card shadow">
           <div className="card-body">
-            <h3 className="mb-4">Add New User</h3>
+            <h3>Add New User</h3>
 
             <form onSubmit={handleSubmit}>
-              {/* First Name */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-user"></i>
-                </span>
+              {[
+                ["First_Name", "First Name"],
+                ["Last_Name", "Last Name"],
+                ["email", "Email", "email"],
+                ["phone", "Phone"],
+              ].map(([name, label, type = "text"]) => (
                 <input
-                  className="form-control"
-                  placeholder="First Name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  key={name}
+                  className="form-control mb-2"
+                  placeholder={label}
+                  name={name}
+                  type={type}
+                  value={form[name]}
+                  onChange={handleChange}
                 />
-              </div>
+              ))}
 
-              {/* Last Name */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-user"></i>
-                </span>
-                <input
-                  className="form-control"
-                  placeholder="Last Name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                />
-              </div>
+              <select
+                className="form-select mb-2"
+                name="role"
+                value={form.role}
+                onChange={handleChange}
+              >
+                <option value="">Select Role</option>
+                <option value="User">User</option>
+                <option value="Admin">Admin</option>
+              </select>
 
-              {/* Email */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-envelope"></i>
-                </span>
-                <input
-                  type="email"
-                  className="form-control"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+              <select
+                className="form-select mb-2"
+                name="organization"
+                value={form.organization}
+                onChange={handleChange}
+              >
+                <option value="">Select Organization</option>
+                {loadingOrg ? (
+                  <option disabled>Loading…</option>
+                ) : (
+                  organizations.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))
+                )}
+              </select>
 
-              {/* Phone */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-phone"></i>
-                </span>
-                <input
-                  type="tel"
-                  className="form-control"
-                  placeholder="Phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
+              <input
+                type="password"
+                className="form-control mb-2"
+                placeholder="Password"
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+              />
 
-              {/* Role */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-briefcase"></i>
-                </span>
-                <select
-                  className="form-select"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                >
-                  <option value="">Select Role</option>
-                  <option value="User">User</option>
-                  <option value="Admin">Admin</option>
-                </select>
-              </div>
+              <input
+                type="password"
+                className="form-control mb-3"
+                placeholder="Confirm Password"
+                name="password2"
+                value={form.password2}
+                onChange={handleChange}
+              />
 
-              {/* Password */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-lock"></i>
-                </span>
-                <input
-                  type={passwordVisible ? "text" : "password"}
-                  className="form-control"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary"
-                  onClick={() => setPasswordVisible(!passwordVisible)}
-                >
-                  {passwordVisible ? "Hide" : "Show"}
-                </button>
-              </div>
-
-              {/* Confirm Password */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-lock"></i>
-                </span>
-                <input
-                  type={password2Visible ? "text" : "password"}
-                  className="form-control"
-                  placeholder="Confirm Password"
-                  value={password2}
-                  onChange={(e) => setPassword2(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary"
-                  onClick={() => setPassword2Visible(!password2Visible)}
-                >
-                  {password2Visible ? "Hide" : "Show"}
-                </button>
-              </div>
-
-              {/* Buttons */}
               <div className="d-flex justify-content-between">
-                <button className="btn btn-success px-4" type="submit">
-                  Save
-                </button>
+                <button className="btn btn-success">Save</button>
                 <button
-                  className="btn btn-secondary px-4"
                   type="button"
+                  className="btn btn-secondary"
                   onClick={() => navigate("/pages/landing-pages/user")}
                 >
                   Cancel
@@ -239,30 +204,20 @@ function AddUser({ onUserAdded }) {
         </div>
       </div>
 
-      {/* Error Modal */}
       {showErrorModal && (
-        <div className="modal show fade d-block" tabIndex="-1">
+        <div className="modal show d-block">
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title text-danger">Error</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowErrorModal(false)}
-                />
+                <h5 className="text-danger">Error</h5>
+                <button className="btn-close" onClick={() => setShowErrorModal(false)} />
               </div>
               <div className="modal-body">
                 <ul>
-                  {errorMessages.map((msg, idx) => (
-                    <li key={idx}>{msg}</li>
+                  {errors.map((e, i) => (
+                    <li key={i}>{e}</li>
                   ))}
                 </ul>
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-primary" onClick={() => setShowErrorModal(false)}>
-                  OK
-                </button>
               </div>
             </div>
           </div>
