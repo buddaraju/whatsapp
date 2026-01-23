@@ -5,11 +5,20 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import "./AddUser.css";
 
-const API_BASE_URL = "http://13.203.200.255:8000/accounts/";
-const ORG_API_URL = "http://13.203.200.255:8000/org/org/";
+const API_BASE_URL = "http://13.203.205.219:8001/accounts/";
 
 function AddUser({ onUserAdded }) {
   const navigate = useNavigate();
+
+  // 🔐 Auth token
+  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+
+  // 🚫 Redirect if not logged in
+  useEffect(() => {
+    if (!token) {
+      navigate("/pages/authentication/sign-in");
+    }
+  }, [token, navigate]);
 
   // Form state
   const [firstName, setFirstName] = useState("");
@@ -17,50 +26,26 @@ function AddUser({ onUserAdded }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
-  const [Organization, setOrganization] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
-
-  // Organization list
-  const [organizations, setOrganizations] = useState([]);
-  const [orgLoading, setOrgLoading] = useState(false);
 
   // Password visibility
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [password2Visible, setPassword2Visible] = useState(false);
 
-  // Modal state
+  // Error modal
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessages, setErrorMessages] = useState([]);
-
-  // Fetch organizations from backend
-  useEffect(() => {
-    const fetchOrganizations = async () => {
-      try {
-        setOrgLoading(true);
-        const res = await axios.get(ORG_API_URL);
-        setOrganizations(res.data);
-      } catch (error) {
-        console.error("Error fetching organizations:", error);
-      } finally {
-        setOrgLoading(false);
-      }
-    };
-
-    fetchOrganizations();
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const errors = [];
-
     if (!firstName) errors.push("First Name is required");
     if (!lastName) errors.push("Last Name is required");
     if (!email) errors.push("Email is required");
     if (!phone) errors.push("Phone is required");
     if (!role) errors.push("Role is required");
-    if (!Organization) errors.push("Organization is required");
     if (!password) errors.push("Password is required");
     if (!password2) errors.push("Confirm Password is required");
     if (password !== password2) errors.push("Passwords do not match");
@@ -72,27 +57,27 @@ function AddUser({ onUserAdded }) {
     }
 
     const payload = {
-      FirstName,
-      LastName,
+      First_Name: firstName,
+      Last_Name: lastName,
       email,
       phone,
       role,
-      Organization, // sending organization id
       status: "Active",
       password,
       password2,
     };
 
     try {
-      const res = await axios.post(`${API_BASE_URL}register`, payload, {
-        headers: { "Content-Type": "application/json" },
+      const res = await axios.post(`${API_BASE_URL}register/`, payload, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // 🔐 send token
+        },
       });
 
       if (onUserAdded) onUserAdded(res.data);
       navigate("/pages/landing-pages/user");
     } catch (err) {
-      console.error("Error registering user:", err.response?.data || err);
-
       const backendErrors = [];
 
       if (err.response?.data && typeof err.response.data === "object") {
@@ -191,30 +176,6 @@ function AddUser({ onUserAdded }) {
                   <option value="">Select Role</option>
                   <option value="User">User</option>
                   <option value="Admin">Admin</option>
-                </select>
-              </div>
-
-              {/* Organization */}
-              <div className="input-group mb-3">
-                <span className="input-group-text">
-                  <i className="fa fa-building"></i>
-                </span>
-                <select
-                  className="form-select"
-                  value={Organization}
-                  onChange={(e) => setOrganization(e.target.value)}
-                >
-                  <option value="">Select Organization</option>
-
-                  {orgLoading ? (
-                    <option disabled>Loading...</option>
-                  ) : (
-                    organizations.map((org) => (
-                      <option key={org.id} value={org.id}>
-                        {org.name}
-                      </option>
-                    ))
-                  )}
                 </select>
               </div>
 

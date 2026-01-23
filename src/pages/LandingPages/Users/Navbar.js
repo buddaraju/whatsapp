@@ -6,9 +6,16 @@ import logo from "../../../assets/images/logo-ct-dark.png";
 function Navbar() {
   const navigate = useNavigate();
 
+  // Check if user is logged in
+  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+
   const handleLogout = () => {
     localStorage.clear();
     sessionStorage.clear();
+    navigate("/pages/authentication/sign-in");
+  };
+
+  const handleLogin = () => {
     navigate("/pages/authentication/sign-in");
   };
 
@@ -22,9 +29,15 @@ function Navbar() {
           <img src={logo} alt="Logo" width="40" height="40" className="me-2" />
         </div>
 
-        <button className="btn btn-outline-light" onClick={handleLogout}>
-          Logout
-        </button>
+        {token ? (
+          <button className="btn btn-outline-light" onClick={handleLogout}>
+            Logout
+          </button>
+        ) : (
+          <button className="btn btn-outline-light" onClick={handleLogin}>
+            Login
+          </button>
+        )}
       </div>
     </nav>
   );

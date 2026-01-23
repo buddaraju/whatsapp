@@ -4,162 +4,68 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { FaEdit, FaTrashAlt, FaPlus, FaSearch, FaDownload, FaUpload } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
-import "./UserAdd.css";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 
 // API URLs
-const API_URL = "http://13.203.200.255:8002/accounts/users";
-const USER_API_URL = "http://13.203.200.255:8000/accounts/user";
+const API_URL = "http://13.203.205.219:8001/accounts/users/";
+const USER_API_URL = "http://13.203.205.219:8001/accounts/user/";
 
 function UserAdd() {
-  const [users, setUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
-
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
-
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [userToEdit, setUserToEdit] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const navigate = useNavigate();
 
+  // 🔐 Auth
+  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+
+  // 🚫 Redirect if not logged in
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (!token) {
+      navigate("/pages/authentication/sign-in");
+    }
+  }, [token, navigate]);
 
-  // LOAD USERS
-  const loadUsers = () => {
-    setLoading(true);
-    axios
-      .get(API_URL)
-      .then((res) => setUsers(res.data))
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
-  };
+  // 📦 State
+  const [users, setUsers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // SEARCH FILTER
+  const itemsPerPage = 5;
+
+  // 🔄 Load users
+  useEffect(() => {
+    if (token) {
+      axios
+        .get(API_URL, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((res) => setUsers(res.data))
+        .catch(console.error);
+    }
+  }, [token]);
+
+  // 🔍 Search filter
   const filteredUsers = users.filter(
     (u) =>
-      (u.First_Name && u.First_Name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.Last_Name && u.Last_Name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.phone && u.phone.toLowerCase().includes(searchTerm.toLowerCase()))
+      u.First_Name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.Last_Name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.phone?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // PAGINATION
+  // 📄 Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
-  // DELETE USER ✅
-  const confirmDelete = () => {
-    if (!userToDelete) return;
+  // 🗑 Delete user
+  const deleteUser = (id) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
 
     axios
-      .delete(`${USER_API_URL}${userToDelete.id}/`)
-      .then(() => {
-        setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
-        setShowDeleteModal(false);
-        setUserToDelete(null);
+      .delete(`${USER_API_URL}${id}/`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch((err) => console.error("DELETE ERROR:", err));
-  };
-
-  // EDIT USER ✅ (PUT ONLY)
-  const confirmEdit = () => {
-    if (!userToEdit) return;
-
-    const payload = {
-      First_Name: userToEdit.First_Name,
-      Last_Name: userToEdit.Last_Name,
-      email: userToEdit.email,
-      phone: userToEdit.phone,
-      role: userToEdit.role,
-      organization: userToEdit.organization,
-      status: userToEdit.status,
-      password: userToEdit.password,
-      password2: userToEdit.password2,
-    };
-
-    axios
-      .put(`${USER_API_URL}${userToEdit.id}/`, payload, {
-        headers: { "Content-Type": "application/json" },
-      })
-      .then((res) => {
-        setUsers((prev) => prev.map((u) => (u.id === userToEdit.id ? res.data : u)));
-        setShowEditModal(false);
-        setUserToEdit(null);
-      })
-      .catch((err) => {
-        console.error("EDIT ERROR:", err.response?.data || err);
-        alert("Update failed. Check console.");
-      });
-  };
-
-  // IMPORT EXCEL FILE
-  const handleImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = evt.target.result;
-      const workbook = XLSX.read(data, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
-
-      console.log("Imported Data:", jsonData);
-      // OPTIONAL: send to API
-      // jsonData.forEach(user => axios.post(API_URL, user));
-      alert("data imported successfully ");
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  // EXPORT USERS TO CSV
-  const handleExport = () => {
-    const csvHeader = [
-      "ID",
-      "First Name",
-      "Last Name",
-      "Email",
-      "Phone",
-      "Role",
-      "Organization",
-      "Status",
-    ];
-
-    const csvRows = users.map((u) => [
-      u.id,
-      u.First_Name,
-      u.Last_Name,
-      u.email,
-      u.phone,
-      u.role,
-      u.organization,
-      u.status,
-    ]);
-
-    const csvContent = [csvHeader, ...csvRows].map((e) => e.join(",")).join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    // 👉 username OR email
-    const name = localStorage.getItem("username") || localStorage.getItem("email") || "user";
-
-    const safeName = name.replace(/[@.]/g, "_");
-
-    saveAs(blob, `${safeName}_users.csv`);
+      .then(() => setUsers((prev) => prev.filter((u) => u.id !== id)))
+      .catch(console.error);
   };
 
   return (
@@ -168,17 +74,17 @@ function UserAdd() {
 
       <div className="container-fluid bg-light min-vh-100 pt-5">
         <div className="container mt-4">
-          <div className="card shadow-lg border-0 rounded-4">
+          <div className="card shadow border-0 rounded-4">
             <div className="card-body p-4">
               <h3 className="fw-bold text-primary mb-4">Users</h3>
 
-              {/* SEARCH + ADD */}
-              <div className="row mb-4">
+              {/* Search & Add */}
+              <div className="row mb-4 align-items-center">
                 <div className="col-md-8 position-relative">
-                  <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-primary" />
+                  <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" />
                   <input
                     className="form-control ps-5 rounded-pill"
-                    placeholder="Search..."
+                    placeholder="Search by name, email or phone..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -197,20 +103,17 @@ function UserAdd() {
                 </div>
               </div>
 
-              {/* TABLE */}
-              {loading ? (
-                <div className="text-center text-primary fw-bold">Loading...</div>
-              ) : (
-                <table className="table table-bordered table-hover text-center">
+              {/* Table */}
+              <div className="table-responsive">
+                <table className="table table-bordered table-hover align-middle text-center">
                   <thead className="table-dark">
                     <tr>
                       <th>ID</th>
-                      <th>First</th>
-                      <th>Last</th>
+                      <th>First Name</th>
+                      <th>Last Name</th>
                       <th>Email</th>
                       <th>Phone</th>
                       <th>Role</th>
-                      <th>Organization</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -218,18 +121,19 @@ function UserAdd() {
                   <tbody>
                     {currentUsers.length === 0 ? (
                       <tr>
-                        <td colSpan="9">You do not have permission to perform this action</td>
+                        <td colSpan="8" className="text-muted py-4">
+                          No users found
+                        </td>
                       </tr>
                     ) : (
-                      currentUsers.map((user, index) => (
+                      currentUsers.map((user) => (
                         <tr key={user.id}>
-                          <td>{indexOfFirstItem + index + 1}</td>
-                          <td>{user.First_Name}</td>
-                          <td>{user.last_name}</td>
-                          <td>{user.email}</td>
-                          <td>{user.phone}</td>
-                          <td>{user.role}</td>
-                          <td>{user.organization}</td>
+                          <td>{user.id}</td>
+                          <td>{user.First_Name || "-"}</td>
+                          <td>{user.Last_Name || "-"}</td>
+                          <td>{user.email || "-"}</td>
+                          <td>{user.phone || "-"}</td>
+                          <td>{user.role || "-"}</td>
                           <td>
                             <span
                               className={`badge ${
@@ -239,47 +143,18 @@ function UserAdd() {
                               {user.status}
                             </span>
                           </td>
-                          <td className="d-flex justify-content-center gap-2">
-                            {/* Edit */}
+                          <td>
                             <button
-                              className="btn btn-outline-warning btn-sm d-flex align-items-center justify-content-center"
-                              style={{ width: "40px", height: "40px" }}
-                              onClick={() => {
-                                setUserToEdit({ ...user });
-                                setShowEditModal(true);
-                              }}
+                              className="btn btn-warning btn-sm me-2"
+                              onClick={() => navigate(`/pages/landing-pages/user/edit/${user.id}`)}
                             >
                               <FaEdit />
                             </button>
-
-                            {/* Delete */}
                             <button
-                              className="btn btn-outline-danger btn-sm d-flex align-items-center justify-content-center"
-                              style={{ width: "40px", height: "40px" }}
-                              onClick={() => {
-                                setUserToDelete(user);
-                                setShowDeleteModal(true);
-                              }}
+                              className="btn btn-danger btn-sm"
+                              onClick={() => deleteUser(user.id)}
                             >
                               <FaTrashAlt />
-                            </button>
-
-                            {/* Import */}
-                            <button
-                              className="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center"
-                              style={{ width: "40px", height: "40px" }}
-                              onClick={handleImport}
-                            >
-                              <FaUpload />
-                            </button>
-
-                            {/* Export */}
-                            <button
-                              className="btn btn-outline-success btn-sm d-flex align-items-center justify-content-center mb-0"
-                              style={{ width: "40px", height: "40px", cursor: "pointer" }}
-                              onClick={handleExport} // ✅ Directly triggers download
-                            >
-                              <FaDownload />
                             </button>
                           </td>
                         </tr>
@@ -287,16 +162,16 @@ function UserAdd() {
                     )}
                   </tbody>
                 </table>
-              )}
+              </div>
 
               {/* PAGINATION */}
               {totalPages > 1 && (
                 <div className="text-center">
                   {[...Array(totalPages)].map((_, i) => (
                     <button
-                      key={i}
+                      key={index}
                       className={`btn btn-sm mx-1 ${
-                        currentPage === i + 1 ? "btn-primary" : "btn-outline-primary"
+                        currentPage === index + 1 ? "btn-primary" : "btn-outline-primary"
                       }`}
                       onClick={() => setCurrentPage(i + 1)}
                     >

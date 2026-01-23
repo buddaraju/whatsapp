@@ -41,7 +41,7 @@ function SignInBasic() {
     setError("");
 
     try {
-      const response = await axios.post("http://13.203.200.255:8000/accounts/login/", {
+      const response = await axios.post("http://13.203.205.219:8001/accounts/login/", {
         email,
         password,
       });
