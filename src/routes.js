@@ -23,6 +23,7 @@ import Sms from "pages/LandingPages/Author/sms";
 import WhatsApp from "pages/LandingPages/Author/whatsapp";
 import UserAdd from "pages/LandingPages/Users";
 import AddUser from "pages/LandingPages/Users/AddUser";
+import User from "pages/LandingPages/Users/User";
 
 const routes = [
   {
@@ -92,6 +93,13 @@ const routes = [
     icon: <LoginIcon sx={{ color: "#d32f2f", fontSize: 28 }} />,
     route: "/pages/landing-pages/user/AddUser",
     component: <AddUser />,
+    displayInNavbar: false, // <-- Hide in navbar
+  },
+  {
+    name: "newuser",
+    icon: <LoginIcon sx={{ color: "#d32f2f", fontSize: 28 }} />,
+    route: "/pages/landing-pages/user/User",
+    component: <User />,
     displayInNavbar: false, // <-- Hide in navbar
   },
   {

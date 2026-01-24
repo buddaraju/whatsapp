@@ -1,0 +1,13 @@
+.btn-fixed-size {
+  width: 120px; /* Or any desired fixed width */
+  height: 40px; /* Or any desired fixed height */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.mb-4 {
+    padding-top: 54px !important;
+}
+.w-100 {
+    width: auto !important;
+}

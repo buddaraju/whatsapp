@@ -6,9 +6,7 @@ import logo from "../../../assets/images/logo-ct-dark.png";
 function Navbar() {
   const navigate = useNavigate();
 
-  // Check if user is logged in
   const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-
   const handleLogout = () => {
     localStorage.clear();
     sessionStorage.clear();
@@ -20,10 +18,7 @@ function Navbar() {
   };
 
   return (
-    <nav
-      className="navbar navbar-expand-lg navbar-dark shadow-sm fixed-top"
-      style={{ backgroundColor: "rgb(25 135 84)" }}
-    >
+    <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm fixed-top">
       <div className="container-fluid">
         <div className="d-flex align-items-center">
           <img src={logo} alt="Logo" width="40" height="40" className="me-2" />
@@ -31,11 +26,11 @@ function Navbar() {
 
         {token ? (
           <button className="btn btn-outline-light" onClick={handleLogout}>
-            Logout
+            Login
           </button>
         ) : (
           <button className="btn btn-outline-light" onClick={handleLogin}>
-            Login
+            Logout
           </button>
         )}
       </div>
