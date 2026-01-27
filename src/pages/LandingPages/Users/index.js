@@ -3,6 +3,8 @@ import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { FaEdit, FaTrashAlt, FaSearch } from "react-icons/fa";
 import Navbar from "./Navbar";
+import "./UserAdd.css";
+import "./user.css";
 
 // APIs
 const API_URL = "http://127.0.0.1:8000/accounts/users";
