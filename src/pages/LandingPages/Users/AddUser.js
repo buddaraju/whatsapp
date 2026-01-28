@@ -160,6 +160,7 @@ function AddUser({ onUserAdded }) {
                 onChange={handleChange}
               >
                 <option value="">Select Organization</option>
+                <option>Add Organization</option>
                 {loadingOrg ? (
                   <option disabled>Loading…</option>
                 ) : (
