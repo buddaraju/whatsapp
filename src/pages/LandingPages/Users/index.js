@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { FaEdit, FaTrashAlt, FaPlus, FaSearch } from "react-icons/fa";
@@ -41,13 +41,6 @@ function UserAdd() {
     setLoading(true);
     try {
       const res = await axios.get(API_URL, { headers: getAuthHeader() });
-      setUsers(role === "admin" ? res.data : res.data.filter((u) => u.email === email));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // OPEN EDIT MODAL
   const openEditModal = (user) => {
@@ -64,7 +57,7 @@ function UserAdd() {
   // SAVE USER
   const saveUser = async () => {
     try {
-      const res = await axios.put(`${USER_API_URL}/${selectedUser.id}/`, selectedUser, {
+      await axios.delete(`${USER_API_URL}/${id}/`, {
         headers: getAuthHeader(),
       });
       setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? res.data : u)));

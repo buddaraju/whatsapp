@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { FaUpload, FaDownload, FaSearch, FaTrashAlt } from "react-icons/fa";
-import Papa from "papaparse";
+import { FaUpload, FaDownload, FaSearch } from "react-icons/fa";
 import Navbar from "./Navbar";
 import "./UserAdd.css";
 import "./user.css";
+
+// API
+const API_URL = "http://127.0.0.1:8000/accounts/users";
+
+// AUTH HEADER
+const getAuthHeader = () => ({
+  Authorization:
+    "Basic " + btoa(`${localStorage.getItem("email")}:${localStorage.getItem("password")}`),
+});
 
 function User() {
   const currentUser = localStorage.getItem("email");
@@ -12,132 +20,105 @@ function User() {
 
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // alert modal
+  // Modal state
   const [modalMessage, setModalMessage] = useState("");
   const [showModal, setShowModal] = useState(false);
 
-  // delete modal
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteIndex, setDeleteIndex] = useState(null);
+  const role = localStorage.getItem("role");
+  const email = localStorage.getItem("email");
 
   // load users
   useEffect(() => {
-    if (!currentUser) return;
-    const savedUsers = localStorage.getItem(STORAGE_KEY);
-    setUsers(savedUsers ? JSON.parse(savedUsers) : []);
-  }, [currentUser]);
+    loadUsers();
+  }, []);
 
-  // save users
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-  }, [users]);
+  // LOAD USERS
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(API_URL, { headers: getAuthHeader() });
+      setUsers(role === "admin" ? res.data : res.data.filter((u) => u.email === email));
+    } catch (err) {
+      console.error(err);
+      showAlert("Failed to load users");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const showAlert = (msg) => {
-    setModalMessage(msg);
+  // SHOW MODAL
+  const showAlert = (message) => {
+    setModalMessage(message);
     setShowModal(true);
   };
 
-  // import
-  const handleImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const ext = file.name.split(".").pop().toLowerCase();
-    const reader = new FileReader();
-
-    reader.onload = (ev) => {
-      const content = ev.target.result;
-
-      if (ext === "json") {
-        try {
-          const data = JSON.parse(content).map((u) => ({
-            First_Name: u.First_Name || u.first_name || "",
-            Last_Name: u.Last_Name || u.last_name || "",
-            email: u.email || "",
-            phone: u.phone || "",
-            organization: u.organization || "",
-            whatsapp_enabled: u.whatsapp_enabled || "",
-          }));
-          setUsers((p) => [...p, ...data]);
-          showAlert(`Imported ${data.length} users from JSON`);
-        } catch {
-          showAlert("Invalid JSON file");
-        }
-      }
-
-      if (ext === "csv") {
-        Papa.parse(content, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (res) => {
-            const data = res.data.map((u) => ({
-              First_Name: u.First_Name || u.first_name || "",
-              Last_Name: u.Last_Name || u.last_name || "",
-              email: u.email || "",
-              phone: u.phone || "",
-              organization: u.organization || "",
-              whatsapp_enabled: u.whatsapp_enabled || "",
-            }));
-            setUsers((p) => [...p, ...data]);
-            showAlert(`Imported ${data.length} users from CSV`);
-          },
-          error: () => showAlert("CSV parse error"),
-        });
-      }
-    };
-
-    reader.readAsText(file);
-    e.target.value = null;
+  // HANDLE IMPORT (CSV/JSON) - Placeholder
+  const handleImport = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      console.log("Imported file:", file.name);
+      showAlert(`Imported file: ${file.name}`);
+      // TODO: Parse file and update `users` array
+    }
   };
 
-  // export
+  // HANDLE EXPORT TO XLS
   const handleExport = () => {
-    if (!users.length) return showAlert("No users to export");
+    if (users.length === 0) {
+      showAlert("No users to export");
+      return;
+    }
 
-    let table = `<table border="1"><tr>
-      <th>Id</th><th>First</th><th>Last</th><th>Email</th>
-      <th>Phone</th><th>Organization</th><th>Whatsapp</th>
-    </tr>`;
+    // Create HTML table for XLS
+    let table = `<table border="1">
+      <tr>
+        <th>#</th>
+        <th>First</th>
+        <th>Last</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Role</th>
+        <th>Organization</th>
+        <th>Status</th>
+      </tr>`;
 
     users.forEach((u, i) => {
       table += `<tr>
         <td>${i + 1}</td>
-        <td>${u.First_Name}</td>
-        <td>${u.Last_Name}</td>
-        <td>${u.email}</td>
-        <td>${u.phone}</td>
-        <td>${u.organization}</td>
-        <td>${u.whatsapp_enabled}</td>
+        <td>${u.First_Name || ""}</td>
+        <td>${u.Last_Name || ""}</td>
+        <td>${u.email || ""}</td>
+        <td>${u.phone || ""}</td>
+        <td>${u.role || ""}</td>
+        <td>${u.organization || ""}</td>
+        <td>${u.status || ""}</td>
       </tr>`;
     });
 
     table += "</table>";
 
     const blob = new Blob([table], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = "users.xls";
     a.click();
+    URL.revokeObjectURL(url);
   };
 
-  // search
-  const filteredUsers = users.filter((u) =>
-    Object.values(u).some((v) => v && v.toString().toLowerCase().includes(searchTerm.toLowerCase()))
+  // SEARCH FILTER
+  const filteredUsers = users.filter(
+    (u) =>
+      (u.First_Name && u.First_Name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.Last_Name && u.Last_Name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.phone && u.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.role && u.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.organization && u.organization.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.status && u.status.toLowerCase().includes(searchTerm.toLowerCase()))
   );
-
-  // delete handlers
-  const openDeleteModal = (index) => {
-    setDeleteIndex(index);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDelete = () => {
-    setUsers((prev) => prev.filter((_, i) => i !== deleteIndex));
-    setShowDeleteModal(false);
-    setDeleteIndex(null);
-    showAlert("User deleted successfully");
-  };
 
   return (
     <>
@@ -221,10 +202,93 @@ function User() {
       <div
         className={`modal fade ${showModal ? "show d-block" : ""}`}
         style={{ background: "rgba(0,0,0,0.5)" }}
+        {loading ? (
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        ) : (
+          <div className="card shadow-sm">
+            {/* CARD HEADER */}
+            <div className="card-header bg-white">
+              <div className="row align-items-center g-2">
+                <div className="col-12 col-md-8 position-relative mb-2 mb-md-0">
+                  <FaSearch className="position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary" />
+                  <input
+                    className="form-control ps-5"
+                    placeholder="Search..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                <div className="col-md-4 text-end d-flex justify-content-end gap-2">
+                  {/* IMPORT BUTTON */}
+                  <label className="btn btn-primary rounded-pill mb-0 px-4">
+                    <FaUpload className="me-2" /> Import
+                    <input type="file" accept=".csv,.json" onChange={handleImport} hidden />
+                  </label>
+
+                  {/* EXPORT BUTTON */}
+                  <button className="btn btn-success rounded-pill px-4" onClick={handleExport}>
+                    <FaDownload className="me-2" /> Export
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD BODY */}
+            <div className="card-body p-0 table-responsive">
+              <table className="table table-bordered table-hover text-center mb-0">
+                <thead className="table-dark">
+                  <tr>
+                    <th>#</th>
+                    <th>First</th>
+                    <th>Last</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Role</th>
+                    <th>Organization</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan="8">No users found</td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u, i) => (
+                      <tr key={u.id}>
+                        <td>{i + 1}</td>
+                        <td>{u.First_Name}</td>
+                        <td>{u.Last_Name}</td>
+                        <td>{u.email}</td>
+                        <td>{u.phone}</td>
+                        <td>{u.role}</td>
+                        <td>{u.organization}</td>
+                        <td>{u.status}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL POPUP */}
+      <div
+        className={`modal fade ${showModal ? "show d-block" : ""}`}
+        tabIndex="-1"
+        style={{ backgroundColor: showModal ? "rgba(0,0,0,0.5)" : "transparent" }
       >
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content">
             <div className="modal-header">
+
               <h5>Alert</h5>
               <button className="btn-close" onClick={() => setShowModal(false)} />
             </div>
@@ -259,6 +323,20 @@ function User() {
               </button>
               <button className="btn btn-danger btn-fixed-size" onClick={confirmDelete}>
                 Delete
+
+              <h5 className="modal-title">Alert</h5>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setShowModal(false)}
+              ></button>
+            </div>
+            <div className="modal-body">
+              <p>{modalMessage}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={() => setShowModal(false)}>
+                OK
               </button>
             </div>
           </div>
